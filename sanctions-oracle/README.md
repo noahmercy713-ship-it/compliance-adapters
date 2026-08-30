@@ -67,6 +67,78 @@ Anything conforming to this interface — a REST client, a cache in front of
 multiple upstream lists, a local CSV loader — can be passed to
 `syncSanctionsToDenylist` in place of `MockSanctionsProvider`.
 
+## Loading a CSV watchlist with `CsvSanctionsProvider`
+
+`CsvSanctionsProvider` is a ready-made `SanctionsProvider` implementation for
+CSV-backed watchlists, suitable for scenarios where you receive a periodic CSV
+export from a compliance data vendor rather than querying a live API.
+
+```ts
+import { CsvSanctionsProvider } from 'sanctions-oracle';
+
+const provider = new CsvSanctionsProvider('./watchlist.csv');
+const result = await provider.checkAddress('GABC...');
+// { flagged: true, source: 'csv-watchlist-v1' }   if address is in the file
+// { flagged: false, source: 'csv-watchlist-v1' }  otherwise
+```
+
+### CSV format
+
+The file must be UTF-8 encoded. The first row is treated as a header and always
+skipped. Each subsequent row must have at least one comma-separated column:
+
+| Column | Required | Description |
+|---|---|---|
+| 1 — `address` | yes | A valid Stellar Ed25519 public key (`G…`) |
+| 2 — `source` | no | Free-text label identifying the list. Defaults to `csv-watchlist-v1` if omitted. |
+
+Example:
+
+```csv
+address,source
+GABC...,ofac-sdn
+GDEF...,eu-consolidated
+GHIJ...
+```
+
+Any row whose first column is not a valid `G…` public key is skipped with a
+`console.warn` warning — the rest of the file continues loading normally.
+
+### File-not-found behaviour
+
+If the file at the provided path does not exist at construction time,
+`CsvSanctionsProvider` logs a warning and starts with an empty flagged-address
+set (i.e. every `checkAddress` call returns `{ flagged: false }`). This avoids
+a hard crash in environments where the CSV file is populated asynchronously
+after the provider is constructed.
+
+### Wiring with `syncSanctionsToDenylist`
+
+```ts
+import { CsvSanctionsProvider, syncSanctionsToDenylist, createRpcDenylistWriter } from 'sanctions-oracle';
+import { Keypair } from '@stellar/stellar-sdk';
+
+const provider = new CsvSanctionsProvider('./watchlist.csv');
+const writer = createRpcDenylistWriter({
+  rpcUrl: process.env.STELLAR_RPC_URL!,
+  networkPassphrase: process.env.STELLAR_NETWORK_PASSPHRASE!,
+  contractId: process.env.DENYLIST_GATE_CONTRACT_ID!,
+  sourceKeypair: Keypair.fromSecret(process.env.SANCTIONS_SOURCE_SECRET!),
+});
+
+const result = await syncSanctionsToDenylist({
+  provider,
+  addresses: ['GABC...', 'GDEF...'],
+  writer,
+});
+
+console.log(`Flagged ${result.flagged.length} of ${result.checked} checked addresses`);
+```
+
+`CsvSanctionsProvider` also composes naturally with `ProviderRegistry` —
+register it alongside other providers to combine CSV data with an API-backed
+list.
+
 ## Running multiple providers with `ProviderRegistry`
 
 Real deployments often want to check an address against more than one
