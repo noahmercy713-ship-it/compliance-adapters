@@ -76,6 +76,7 @@ flowchart TD
     Webhook["Your webhook handler\n(re-acts to on-chain state changes)"]
     Soroban(["Soroban RPC\n(soroban-testnet / pubnet)"])
     Contracts["compliance-primitives contracts\n(denylist-gate · allowlist-token · jurisdiction-flag)"]
+    Logger["logger\n(Logger · consoleLogger · noopLogger)"]
 
     Client -->|"1 · request challenge"| Sep10
     Sep10 -->|"2 · unsigned challenge XDR"| Client
@@ -92,6 +93,10 @@ flowchart TD
     Listener -->|"poll getEvents (cursor-based)"| Soroban
     Listener -->|"HTTP POST event payload"| Webhook
     Webhook -->|"trigger re-sync /\nalert / audit log"| Oracle
+
+    Logger -.->|"injectable Logger interface"| Sep10
+    Logger -.->|"injectable Logger interface"| Oracle
+    Logger -.->|"injectable Logger interface"| Listener
 ```
 
 **Flow summary:**
