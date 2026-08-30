@@ -17,7 +17,7 @@ lives in the other repo.
 
 ## What's in this repo
 
-This is a monorepo with three independent packages and a runnable examples directory:
+This is a monorepo with four independent packages and a runnable examples directory:
 
 - **[`sep10-auth`](./sep10-auth)** — builds and verifies [SEP-10](https://stellar.org/protocol/sep-10)
   web authentication challenges, so you can confirm a request is really coming from the Stellar
@@ -29,6 +29,10 @@ This is a monorepo with three independent packages and a runnable examples direc
 - **[`horizon-listener`](./horizon-listener)** — an example service that polls Soroban RPC for
   `denylist-gate` / `allowlist-token` contract events and re-emits them to a webhook, as a
   reference pattern for reacting to on-chain compliance state changes.
+- **[`logger`](./logger)** — a tiny shared logging interface (`Logger`) with two built-in
+  implementations: `consoleLogger` (delegates to the global `console`) and `noopLogger`
+  (silences all output). All three adapter packages accept an injectable `Logger` so you can
+  plug in any compatible logger — pino, winston, a test spy — without wrapping it.
 
 Each package has its own `README.md`, tests, and `package.json`.
 
