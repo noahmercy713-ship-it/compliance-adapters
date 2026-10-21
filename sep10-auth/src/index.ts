@@ -10,4 +10,5 @@ export * from './revocation';
 export * from './rate-limiter';
 export * from './jwt';
 export * from './router';
+export * from './client';
 export type { Logger } from '@compliance-adapters/logger';

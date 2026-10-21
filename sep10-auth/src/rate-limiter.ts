@@ -16,6 +16,8 @@ export interface RateLimiterOptions {
    * Skipped requests never consume tokens.
    */
   skip?: (req: import('express').Request) => boolean | Promise<boolean>;
+  /** Send the IETF draft `RateLimit-*` headers on every response. @default true */
+  standardHeaders?: boolean;
 }
 
 export interface RateLimitDecision {

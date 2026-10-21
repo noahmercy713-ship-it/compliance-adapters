@@ -157,6 +157,76 @@ It must be finite and non-negative; otherwise verification fails with
 `INVALID_OPTIONS`.
 
 ### SEP-45 prototype (contract accounts)
+### `authenticateWithSep10(options)`
+
+A client-side helper for server-to-server (Node/CLI) SEP-10 flows. It fetches a
+challenge, validates the server signature and network passphrase, signs the
+challenge with the provided keypair, and exchanges it for a JWT — all in one
+call. Designed for anchors or services that need to authenticate against
+another server's SEP-10 endpoint without a browser wallet.
+
+```ts
+import { Keypair, Networks } from '@stellar/stellar-sdk';
+import { authenticateWithSep10 } from 'sep10-auth';
+
+const keypair = Keypair.fromSecret(process.env.CLIENT_SECRET!);
+
+const token = await authenticateWithSep10({
+  authEndpoint: 'https://anchor.example.com/auth',
+  keypair,
+  homeDomain: 'anchor.example.com',
+  networkPassphrase: Networks.PUBLIC,
+});
+
+// Use the JWT as a Bearer token for subsequent API calls:
+await fetch('https://anchor.example.com/transactions', {
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `authEndpoint` | `string` | *(required)* | Full URL of the SEP-10 auth endpoint (e.g. `https://example.com/auth`). |
+| `keypair` | `Keypair` | *(required)* | Client keypair that signs the challenge. Must contain a secret key. |
+| `homeDomain` | `string` | *(required)* | Home domain to authenticate for. Sent as `home_domain` and used to validate the challenge. |
+| `clientDomain` | `string` | — | Wallet client domain for the SEP-10 client domain flow. |
+| `serverAccountId` | `string` | resolved from `stellar.toml` | Server's public key (G...) used to validate the server's signature. When omitted, resolved from `SIGNING_KEY` in the server's `stellar.toml`. |
+| `networkPassphrase` | `string` | `Networks.TESTNET` | Expected network passphrase. The challenge is rejected if its `network_passphrase` does not match. |
+| `webAuthDomain` | `string` | `homeDomain` | Web-auth domain expected in the challenge's `web_auth_domain` operation. |
+| `memo` | `string` | — | Optional memo to include in the challenge request. |
+| `fetch` | `typeof fetch` | `globalThis.fetch` | Injectable `fetch` implementation (for testing or custom headers/timeouts). |
+| `logger` | `Logger` | `noopLogger` | Injectable logger. |
+
+**Errors:**
+
+All failures throw a `Sep10ClientError` with a stable `code` field:
+
+| Code | Meaning |
+|------|---------|
+| `INVALID_KEYPAIR` | The provided keypair cannot sign. |
+| `INVALID_SERVER_ACCOUNT_ID` | The resolved or provided `serverAccountId` is not a valid Ed25519 public key. |
+| `SERVER_KEY_NOT_FOUND` | No `SIGNING_KEY` found in the server's `stellar.toml`. |
+| `TOML_RESOLUTION_FAILED` | The server's `stellar.toml` could not be fetched or parsed. |
+| `CHALLENGE_REQUEST_FAILED` | The `GET /auth` request returned a non-200 status or the connection failed. |
+| `NETWORK_MISMATCH` | The `network_passphrase` in the challenge response does not match the expected value. |
+| `INVALID_SERVER_SIGNATURE` | The challenge transaction is not signed by the server, or the home/web-auth domain does not match. |
+| `ACCOUNT_MISMATCH` | The challenge was built for a different account than the one requested. |
+| `TOKEN_EXCHANGE_FAILED` | The `POST /auth` request returned a non-200 status or the connection failed. |
+
+```ts
+import { authenticateWithSep10, Sep10ClientError } from 'sep10-auth';
+
+try {
+  const token = await authenticateWithSep10({ /* ... */ });
+} catch (error) {
+  if (error instanceof Sep10ClientError) {
+    console.error(`SEP-10 failed: ${error.code} — ${error.message}`);
+  }
+}
+```
+
 
 `generateContractChallenge` and `verifyContractChallenge` authenticate Soroban
 contract accounts (`C...`) with authorization entries for the anchor's
