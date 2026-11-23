@@ -261,3 +261,8 @@ This repo uses package-scoped labels to make triage easier. The intended labels 
 
 A helper script `scripts/apply-package-labels.js` can create these labels and apply them to open
 issues using simple heuristics. It requires a `GITHUB_TOKEN` with repo access to run.
+
+## Handsoff notes
+
+<!-- handsoff-issue-983 -->
+- #983: sep10-auth: publish a JWKS endpoint for asymmetric tokens
