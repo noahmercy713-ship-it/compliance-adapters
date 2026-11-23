@@ -18,6 +18,11 @@ export interface BackoffOptions {
 export interface RetryWithBackoffOptions extends BackoffOptions {
   /** Total attempts before giving up, including the first. Defaults to 3. */
   maxAttempts?: number;
+  /**
+   * Total elapsed-time budget in milliseconds. Retrying stops when the next
+   * delay would push elapsed time past this budget. Defaults to unbounded.
+   */
+  maxElapsedMs?: number;
   /** Predicate to decide if an error should trigger a retry. Defaults to () => true. */
   shouldRetry?: (err: unknown) => boolean;
   /** Injectable sleep function so callers or tests can avoid real delays. */
@@ -137,8 +142,17 @@ export async function retryWithBackoff<T>(
     );
   }
 
+  const maxElapsedMs = options.maxElapsedMs;
+  if (maxElapsedMs !== undefined && (!Number.isFinite(maxElapsedMs) || maxElapsedMs < 0)) {
+    throw new RangeError(
+      `retryWithBackoff: maxElapsedMs must be a non-negative finite number, received ${maxElapsedMs}`,
+    );
+  }
+
   const shouldRetry = options.shouldRetry ?? (() => true);
   const sleepFn = options.sleepFn ?? ((ms: number) => defaultSleep(ms, options.signal));
+
+  let elapsedMs = 0;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (options.signal?.aborted) {
@@ -154,8 +168,13 @@ export async function retryWithBackoff<T>(
       }
 
       const delay = computeBackoffDelayMs(attempt, options);
+      if (maxElapsedMs !== undefined && elapsedMs + delay > maxElapsedMs) {
+        throw err;
+      }
+
       options.onRetry?.({ attempt, error: err, delayMs: delay });
       await sleepFn(delay);
+      elapsedMs += delay;
     }
   }
 

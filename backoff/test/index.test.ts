@@ -167,3 +167,76 @@ describe('withRetry onRetry hook', () => {
     });
   });
 });
+
+describe('withRetry maxElapsedMs budget', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('stops retrying when the next delay would exceed the total time budget', async () => {
+    const error = new Error('boom');
+    const fn = jest.fn().mockRejectedValue(error);
+
+    // Delays with jitter disabled: 500, 1000, 2000, 4000...
+    // Budget of 1200ms: after attempt 0 (500ms) elapsed=500, next delay 1000
+    // would push elapsed to 1500 > 1200, so retrying stops after the first retry.
+    const promise = withRetry(fn, {
+      retries: 10,
+      jitter: false,
+      maxElapsedMs: 1200,
+    });
+
+    // Attach a rejection handler before advancing timers to avoid unhandled rejections.
+    const assertion = expect(promise).rejects.toBe(error);
+
+    await jest.advanceTimersByTimeAsync(500);
+
+    await assertion;
+
+    // First call plus one retry (the 500ms delay fit within the budget).
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry at all when the first delay already exceeds the budget', async () => {
+    const error = new Error('boom');
+    const fn = jest.fn().mockRejectedValue(error);
+
+    const promise = withRetry(fn, {
+      retries: 5,
+      jitter: false,
+      maxElapsedMs: 100,
+    });
+
+    const assertion = expect(promise).rejects.toBe(error);
+
+    await jest.advanceTimersByTimeAsync(0);
+
+    await assertion;
+
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('still retries up to maxAttempts when the budget is generous', async () => {
+    const error = new Error('boom');
+    const fn = jest.fn().mockRejectedValue(error);
+
+    const promise = withRetry(fn, {
+      retries: 2,
+      jitter: false,
+      maxElapsedMs: 60000,
+    });
+
+    const assertion = expect(promise).rejects.toBe(error);
+
+    // 500 + 1000 = 1500ms of total delay for two retries.
+    await jest.advanceTimersByTimeAsync(1500);
+
+    await assertion;
+
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
