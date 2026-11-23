@@ -1,4 +1,4 @@
-import { computeBackoffDelayMs } from '../src/index';
+import { computeBackoffDelayMs, withRetry } from '../src/index';
 
 describe('computeBackoffDelayMs', () => {
   it('grows exponentially with the attempt number when jitter is disabled', () => {
@@ -136,5 +136,34 @@ describe('computeBackoffDelayMs', () => {
     expect(() => computeBackoffDelayMs(NaN)).toThrow(RangeError);
     expect(() => computeBackoffDelayMs(-1)).toThrow(RangeError);
     expect(() => computeBackoffDelayMs(Infinity)).toThrow(RangeError);
+  });
+});
+
+describe('withRetry onRetry hook', () => {
+  it('invokes onRetry with attempt, error, and delayMs on each retry', async () => {
+    const error = new Error('boom');
+    const onRetry = jest.fn();
+    const fn = jest.fn().mockRejectedValue(error);
+
+    await expect(
+      withRetry(fn, {
+        retries: 2,
+        jitter: false,
+        onRetry,
+        sleepFn: () => Promise.resolve(),
+      }),
+    ).rejects.toBe(error);
+
+    expect(onRetry).toHaveBeenCalledTimes(2);
+    expect(onRetry).toHaveBeenNthCalledWith(1, {
+      attempt: 0,
+      error,
+      delayMs: 500,
+    });
+    expect(onRetry).toHaveBeenNthCalledWith(2, {
+      attempt: 1,
+      error,
+      delayMs: 1000,
+    });
   });
 });

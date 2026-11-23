@@ -24,6 +24,11 @@ export interface RetryWithBackoffOptions extends BackoffOptions {
   sleepFn?: (ms: number) => Promise<void>;
   /** Optional AbortSignal to cancel pending sleep and abort retries. */
   signal?: AbortSignal;
+  /**
+   * Invoked before each retry sleep with the 0-based attempt index, the error
+   * that triggered the retry, and the computed delay in milliseconds.
+   */
+  onRetry?: (info: { attempt: number; error: unknown; delayMs: number }) => void;
 }
 
 export type RetryOptions = RetryWithBackoffOptions;
@@ -149,6 +154,7 @@ export async function retryWithBackoff<T>(
       }
 
       const delay = computeBackoffDelayMs(attempt, options);
+      options.onRetry?.({ attempt, error: err, delayMs: delay });
       await sleepFn(delay);
     }
   }
